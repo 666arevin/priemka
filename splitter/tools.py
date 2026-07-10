@@ -20,6 +20,7 @@ def insert_data_to_row(workshhet, row_out: list | tuple, row_id, styles: bool = 
     """
     
     row_in = workshhet[row_id]
+
     for cell_in, cell_out in zip(row_in, row_out):
         cell_in.value = cell_out.value
         if styles:
@@ -34,11 +35,13 @@ def insert_data_to_row(workshhet, row_out: list | tuple, row_id, styles: bool = 
 
             if cell_out.value in ["Заочная", "Очная"]:
                 cell_in.alignment = openpyxl.styles.Alignment(wrap_text=True, vertical="center")
-            elif cell_out.value and cell_out.value.startswith(pattern):
+            elif cell_out.value and isinstance(cell_out.value, str) and cell_out.value.startswith(pattern):
                 cell_in.alignment = openpyxl.styles.Alignment(wrap_text=True, vertical="center")
             
             # настраиваем высоту
             workshhet.row_dimensions[row_id].height = 160
+    
+    workshhet[row_id][0].value = int(workshhet[row_id - 1][0].value) + 1
 
 
 def safe_insert_rows(ws, start_row, amount):
@@ -64,11 +67,19 @@ def formatted_merged_cells(ws):
     for merged_range in ws.merged_cells.ranges:
         columns_count = merged_range.max_col - merged_range.min_col + 1
 
-        if columns_count >= 21:
+        if columns_count >= 18:
             row_idx = merged_range.min_row
             ws.row_dimensions[row_idx].height = 13
 
 def height_formatted(ws: Worksheet):
     for row_idx, row in enumerate(ws.iter_rows(), 1):
-        if row[8].value and row[8].value.startswith(pattern):
+        if (row[8].value and row[8].value.startswith(pattern)) or (row[7].value and row[7].value in ["Заочная", "Очная"]) or row[0].value == "№":
             ws.row_dimensions[row_idx].height = 160
+            if row[8].value.startswith(pattern):
+                ws.merge_cells(f"O{row_idx}:P{row_idx}")
+                ws.merge_cells(f"R{row_idx}:T{row_idx}")
+                ws.merge_cells(f"U{row_idx}:V{row_idx}")
+        elif row[8].value is None and row[0].value is None:
+            ws.row_dimensions[row_idx].height = 13
+            
+            

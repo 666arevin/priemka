@@ -66,10 +66,9 @@ def admission_lists_splitter_add():
     wd_admission = openpyxl.load_workbook(path_admission)
     # wd_gosuslugi = openpyxl.load_workbook(BASE_DIR / "temp" / "gosuslugi.xlsx")
     ws_adm = wd_admission.active
-    print(ws_adm.max_row)
 
     pattern: str = "Спортивная подготовка по виду спорта. Тренерско-преподавательская деятельность в образовании"
-    current_row: int = 850
+    current_row: int = 700
 
     stopper = 0
     while current_row <= ws_adm.max_row:
@@ -77,17 +76,24 @@ def admission_lists_splitter_add():
 
         if row[8].value == pattern:
             sports = data.get(row[1].value)
+
+            # производим корректную нумеровку
+            row[0].value = 1 if ws_adm[row[0].row - 1][0].value == "№" else int(ws_adm[row[0].row - 1][0].value) + 1
             print(f"row: {current_row}, sports: {sports}, max_row: {ws_adm.max_row}")
             if isinstance(sports, str):
                 # добавляем вид спорта и фомратируем
                 row[8].value += "; " + sports
                 ws_adm.row_dimensions[current_row].height = 160
 
+               
             elif isinstance(sports, list):
                 # изменяем текущию строку
                 row[8].value += "; " + sports[0]
+
                 # получаем количество строк которое нужно вставить
                 amount_split = len(sports) - 1
+
+                # важная проверка, если в списке только один обьект
                 if amount_split <= 0:
                     continue
                 id = current_row + 1
@@ -107,7 +113,9 @@ def admission_lists_splitter_add():
         current_row += 1
 
     # форматируем все обьединенные ячейки
+    print("Форматирую высоту merge клеток")
     formatted_merged_cells(ws_adm)
+    print("Форматирую высоту клеток и делаю merge")
     height_formatted(ws_adm)
     wd_admission.save(BASE_DIR / "ready" / "execel.xlsx")
 
