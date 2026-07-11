@@ -3,16 +3,37 @@ import re
 from tools import *
 from pathlib import Path
 import json
+import os
 
 BASE_DIR = Path(__file__).parent.resolve()
 READY_DIR = BASE_DIR / "ready"
-path_gosuslugi= r"C:\Users\arevi\Yandex.Disk\Computer STO_ORMIK\Documents\Програмирование\python\projects\priemka\splitter\Все_заявления_(бак_спец_БВО)_09-07_11-07-10.xlsx"
-path_admission = r"C:\Users\arevi\Yandex.Disk\Computer STO_ORMIK\Documents\Програмирование\python\projects\priemka\splitter\Списки поступающих бакалавриат.xlsx"
+SOURCE_DIR = BASE_DIR / "source"
 
 
+# ищем по регулярке файл
+def find_file_by_regex(folder_path, pattern):
+    # Компилируем регулярное выражение для скорости
+    regex = re.compile(pattern)
+    
+    # Перебираем все файлы в указанной папке
+    for filename in os.listdir(folder_path):
+        # Проверяем, подходит ли имя файла под регулярку
+        if regex.match(filename):
+            # Возвращаем полный путь к файлу
+            return os.path.join(folder_path, filename)
+    
+    raise "Файл не найден"
+
+path_gosuslugi = find_file_by_regex(SOURCE_DIR, r"^Все_заявления_\(бак_спец_БВО\).*\.xlsx$")
+path_admission = Path(find_file_by_regex(SOURCE_DIR, r"^Списки поступающих бакалавриат.*\.xlsx$"))
+
+# wd = openpyxl.load_workbook(path_admission)
+# ws = wd.active
+# print(ws.max_row)
 
 
 def gosuslugi_splitter():
+    print("\nРаботаю с файлом с госуслуг.\n")
     wd = openpyxl.load_workbook(path_gosuslugi)
     ws = wd["Sheet1"]
 
@@ -51,20 +72,19 @@ def gosuslugi_splitter():
             
         current_row += 1
 
+    print("\nфайл с госуслуг готов!\n")
     wd.save(BASE_DIR / "temp" / "gosuslugi.xlsx")
     return data
 
-# res = gosuslugi_splitter()
-# with open(BASE_DIR / "json.json", mode="w", encoding="utf-8") as f:
-#     print(res)
-#     json.dump(res, f, ensure_ascii=False, indent=4)
+res = gosuslugi_splitter()
+with open(BASE_DIR / "json.json", mode="w", encoding="utf-8") as f:
+    json.dump(res, f, ensure_ascii=False, indent=4)
 
-with open(BASE_DIR / "json.json", mode="r", encoding="utf-8") as f:
-    data = json.load(f)
 
-def admission_lists_splitter_add():
+def admission_lists_splitter_add(data):
+    print("\nРаботаю с файлом вступительных списков\n")
+
     wd_admission = openpyxl.load_workbook(path_admission)
-    # wd_gosuslugi = openpyxl.load_workbook(BASE_DIR / "temp" / "gosuslugi.xlsx")
     ws_adm = wd_admission.active
 
     pattern: str = "Спортивная подготовка по виду спорта. Тренерско-преподавательская деятельность в образовании"
@@ -75,11 +95,11 @@ def admission_lists_splitter_add():
         row = ws_adm[current_row]
 
         if row[8].value == pattern:
-            sports = data.get(row[1].value)
+            sports = data.get(int(row[1].value))
 
             # производим корректную нумеровку
             row[0].value = 1 if ws_adm[row[0].row - 1][0].value == "№" else int(ws_adm[row[0].row - 1][0].value) + 1
-            print(f"row: {current_row}, sports: {sports}, max_row: {ws_adm.max_row}")
+            print(f"row: {current_row}, sports: {sports}")
             if isinstance(sports, str):
                 # добавляем вид спорта и фомратируем
                 row[8].value += "; " + sports
@@ -107,6 +127,10 @@ def admission_lists_splitter_add():
                     id += 1
         
                 current_row += amount_split
+            else:
+                print(f"Тип данных -> {type(sports)}, ключ -> {row[1].value}, тип ключа -> {type(row[1].value)}")
+                print(f"ДЛина словаря -> {len(data)}")
+            
 
                 
         stopper += 1
@@ -117,10 +141,12 @@ def admission_lists_splitter_add():
     formatted_merged_cells(ws_adm)
     print("Форматирую высоту клеток и делаю merge")
     height_formatted(ws_adm)
-    wd_admission.save(BASE_DIR / "ready" / "execel.xlsx")
+    wd_admission.save(BASE_DIR / "ready" / "Списки_поступающих_обработанные.xlsx")
+
+    print("\nЗакончил работу с файлом вступительных списков\n")
 
 
-admission_lists_splitter_add()
+admission_lists_splitter_add(res)
 
 
 
