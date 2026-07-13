@@ -59,7 +59,7 @@ def gosuslugi_splitter(no_editing: bool, log_mode: bool):
     if no_editing:
         # получаем словарь уже записанных студентов
         with open(BASE_DIR / "json.json", mode="r", encoding="utf-8") as f:
-            cached_data = json.load(f)
+            data = json.load(f)
 
 
     # проходимся по всем строкам таблицы
@@ -79,9 +79,9 @@ def gosuslugi_splitter(no_editing: bool, log_mode: bool):
                 sports = row[34].value
 
             # если пользователя еще нет в кэше, добавляем его
-            if uuid not in cached_data and row[34].value:
+            if uuid not in data and row[34].value:
                 # сохраняем результат в словарик
-                cached_data[uuid] = sports
+                data[uuid] = sports
 
         
         # ищем в какой строке в столбце 34 есть запятая
@@ -119,7 +119,8 @@ def gosuslugi_splitter(no_editing: bool, log_mode: bool):
 
         # условие если в табличке 1 вид спорта без запятой
         elif row[34].value and row[1].value not in data:
-            data[str(row[1].value)] = row[34].value
+            sports = row[34].value
+            data[str(row[1].value)] = sports
         
         # увеличиваем счетчик строки
         current_row += 1
@@ -141,57 +142,110 @@ def gosuslugi_splitter(no_editing: bool, log_mode: bool):
         with open(BASE_DIR / "logs.txt", mode="w", encoding="utf-8") as f:
             f.write(logs)
 
-    if no_editing:
-        return cached_data
-    else:
-        return data
+    
+    return data
 
 
 
 
-def admission_lists_splitter_add(data):
+def admission_lists_splitter_add(data: dict):
+    """Функция редактирует и форматирует файл с 1C (вступительные списки)
+
+    Args:
+        data (dict): словарь с данными, которые нужно вставить.
+    """
     print("\nРаботаю с файлом вступительных списков\n")
 
+    # загружаем файл excel
     wd_admission = openpyxl.load_workbook(path_admission)
     ws_adm = wd_admission.active
 
     pattern: str = "Спортивная подготовка по виду спорта. Тренерско-преподавательская деятельность в образовании"
+    pattern_uuid: str = "уникальный код"
+    pattern_profile: str = "профиль"
     current_row: int = 700
+    
+    # нумерация и id
+    profile_id = -1
+    numeric = 0
 
-    stopper = 0
+    missed_gosuslugi = list()
+    missed_admission = list()
+
+    # проходимся по всем строкам таблицы    
     while current_row <= ws_adm.max_row:
         row = ws_adm[current_row]
 
-        if row[8].value == pattern:
-            sports = data.get(str(row[1].value))
+        # если мы наткнулись на заголок таблицы, получаем индексы столбцов
+        if row[0].value == "№":
+            uuid_dict, merged_cells = read_headers(row, pattern_uuid, pattern_profile)
+
+            # получаем индексы нужных нам колонок
+            uuid_id = uuid_dict[pattern_uuid]
+            profile_id = uuid_dict[pattern_profile]
+
+            # сбрасываем нумерацию
+            numeric = 0
+
+        # если нашли нужную строку с видом спорта
+        if row[profile_id].value == pattern:
+
+            # проверка на назождение столбца для вставки данных
+            if profile_id == -1:
+                raise Exception("Не был найден столбец для вставки данных.")
+
+            cell_text = str(row[uuid_id].value)
+            sports = data.get(cell_text)
+            missed_admission.append(cell_text)
+
+            # есть в вступительный списках нет на госуслугах
+            if sports is None:
+                missed_gosuslugi.append(cell_text)
+            #     print(f"uuid_id -> {str(row[uuid_id].value)}")
+            #     input("Продолжить?")
 
             # производим корректную нумеровку
-            row[0].value = 1 if ws_adm[row[0].row - 1][0].value == "№" else int(ws_adm[row[0].row - 1][0].value) + 1
+            row[0].value = numeric
             print(f"row: {current_row}, sports: {sports}")
+
+            # проверяем сколько видов спорта надо вставить, если str то один
             if isinstance(sports, str):
-                # добавляем вид спорта и фомратируем
-                row[8].value += "; " + sports
+
+                # добавляем вид спорта и форматруем высоту строки
+                row[profile_id].value += "; " + sports
                 ws_adm.row_dimensions[current_row].height = 160
 
-               
+            # если список, то нужно вставить несколько строк
             elif isinstance(sports, list):
                 # изменяем текущию строку
-                row[8].value += "; " + sports[0]
+                row[profile_id].value += "; " + sports[0]
 
                 # получаем количество строк которое нужно вставить
                 amount_split = len(sports) - 1
 
-                # важная проверка, если в списке только один обьект
+                # важная проверка, если в списке только один обьект дальше не нужно ничего делать
                 if amount_split <= 0:
                     continue
-                id = current_row + 1
 
-                safe_insert_rows(ws_adm, current_row, amount_split)         
+                # берем следующую строку, так как текущая уже заполнена и вставляем новые строки
+                id = current_row + 1
+                safe_insert_rows(ws_adm, id, amount_split)    
+
                 # заполняем новые строки
                 for sport in sports[1:]:
-                    # вставляем строки
-                    insert_data_to_row(ws_adm, row, id, styles=True)
-                    ws_adm[id][8].value = pattern+  "; " + sport
+
+                    # вставляем строки применяя к ним стиль
+                    insert_data_to_row(
+                        ws_adm,
+                        row_out=row,
+                        row_id=id, 
+                        styles=True,
+                        merged_cells=merged_cells,
+                        numeric=numeric,
+                        )
+                    
+                    # добаялем вид спорта
+                    ws_adm[id][profile_id].value = pattern + "; " + sport
                     id += 1
         
                 current_row += amount_split
@@ -200,18 +254,25 @@ def admission_lists_splitter_add(data):
                 print(f"ДЛина словаря -> {len(data)}")
             
 
-                
-        stopper += 1
+        numeric += 1      
         current_row += 1
 
     # форматируем все обьединенные ячейки
     print("Форматирую высоту merge клеток")
     formatted_merged_cells(ws_adm)
+
+    # форматируем высоту клеток
     print("Форматирую высоту клеток и делаю merge")
     height_formatted(ws_adm)
+
+    # wd_admission.save(BASE_DIR / "ready" / "excel.xlsx")
     wd_admission.save(BASE_DIR / "ready" / "Списки_поступающих_обработанные.xlsx")
 
     print("\nЗакончил работу с файлом вступительных списков\n")
+
+    return missed_gosuslugi, missed_admission
+
+
 
 
 def strart_programm(no_editing: bool = False, use_cashe: bool = False,
@@ -224,14 +285,48 @@ def strart_programm(no_editing: bool = False, use_cashe: bool = False,
         use_cashe (bool[True, False]): Не использется
         use_cashe (bool[True, False]): Активация вывода логов в терминал во время работы программы.
     """
+    res = None
     # обрабатываем файл с госуслуг
     res = gosuslugi_splitter(no_editing, log_mode)
 
     with open(BASE_DIR / "json.json", mode="w", encoding="utf-8") as f:
         json.dump(res, f, ensure_ascii=False, indent=4)
+    
+    # если не была выполнена функция gosuslugi_splitter, берем данные из кэша
+    if not res:
+        with open(BASE_DIR / "json.json", mode="r", encoding="utf-8") as f:
+            res = json.load(f)
+
+    # missed_gosuslugi id которые не были найдены на госуслугах
+    # all_founded все id которые были найдены в вступительных списках
+    missed_gosuslugi, all_founded = admission_lists_splitter_add(res)
+
+    missed_admission = list()
+    # проверяем каких нет во вступительных списках
+    for i in res.keys():
+        if i not in all_founded:
+            missed_admission.append(i)
+
+    expression1 = "не были найдены на госуслугах, но есть в вступительных списках."
+    expression2 = "не был найден в вступительных списках, но есть на госуслугах."
+
+    # сохраняем не найденные id
+    with open(BASE_DIR / "errors" / "gosuslugi.txt", mode="w", encoding="utf-8") as f:
+        missed_gosuslugi = expression1 + "\n" + str(missed_gosuslugi)
+        f.write(str(missed_gosuslugi))
+
+    with open(BASE_DIR / "errors" / "admission.txt", mode="w", encoding="utf-8") as f:
+        missed_admission = expression2 + "\n" + str(missed_admission)
+        f.write(str(missed_admission))
+
+
+    print("ID всех не найденны студентов храняться в папке errors.")
+    print(f"Файл gosuslugi -> {expression1}")
+    print(f"Файл admission -> {expression2}")
+
 
 if __name__ == "__main__":
-    strart_programm(no_editing=True, log_mode=True)
+    strart_programm(no_editing=False, log_mode=True)
 
 
 
