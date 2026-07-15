@@ -26,7 +26,7 @@ def find_file_by_regex(folder_path, pattern):
     raise FileNotFoundError("Файл не найден")
 
 path_gosuslugi = find_file_by_regex(SOURCE_DIR, r"^Все_заявления.*\.xlsx$")
-path_admission = Path(find_file_by_regex(SOURCE_DIR, r"^Списки поступающих бакалавриат.*\.xlsx$"))
+path_admission = Path(find_file_by_regex(SOURCE_DIR, r"^Списки_поступающих_бакалавриат.*\.xlsx$"))
 
 
 
@@ -266,7 +266,7 @@ def admission_lists_splitter_add(data: dict):
     height_formatted(ws_adm)
 
     # wd_admission.save(BASE_DIR / "ready" / "excel.xlsx")
-    wd_admission.save(BASE_DIR / "ready" / "Списки_поступающих_обработанные.xlsx")
+    wd_admission.save(BASE_DIR / "ready" / "Списки_поступающих_бакалавриат_обработанные.xlsx")
 
     print("\nЗакончил работу с файлом вступительных списков\n")
 
