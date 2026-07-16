@@ -16,6 +16,7 @@ PATH_ROOT_DIR = BASE_DIR.parent
 sys.path.append(str(PATH_ROOT_DIR))
 
 from splitter.main import find_file_by_regex
+from splitter.tools import smart_file_open
 
 
 # определяем основные директории
@@ -60,7 +61,7 @@ def collect_data_statement(log_mode: bool) -> dict:
     }
 
     # загружаем данные студентов
-    data = smart_file_open()
+    data = smart_file_open(CACHE_DIR / "json.json")
     
     for ws in wb.worksheets:
 
@@ -71,7 +72,7 @@ def collect_data_statement(log_mode: bool) -> dict:
         
         # получаем данные из шапки
         student_major = ws["D5"].value
-        sport = ws["D6"].value # в ведомости указанг как профиль
+        sport = ws["D6"].value # в ведомости указан как профиль
         test_name = ws["D7"].value # название экзамена (предмет)
 
         # проверка на направление для которого должен быть указан sport
@@ -80,7 +81,10 @@ def collect_data_statement(log_mode: bool) -> dict:
 
         # обработка перменных
         student_major = render_student_major(sport, student_major) # обрабатываем направление подготовки
-        test_name = value_mapping.get(test_name.strip()) # переводим название экзамена в нужный формат
+        # если название теста нужно преобразовать, то переводим в другой формат
+        if test_name in value_mapping:
+            test_name = value_mapping.get(test_name.strip())
+        
 
         # если mode False ищем когда начнуться фамилии, если True уже нашли
         mode = False
@@ -125,6 +129,7 @@ def collect_data_statement(log_mode: bool) -> dict:
                     
             current_row += 1
 
+    # сохраняем наши данные к кэш
     with open(CACHE_DIR / "json.json", mode="w", encoding="utf-8") as f:
         json.dump(data, f,indent=4, ensure_ascii=False)
     
@@ -152,9 +157,16 @@ def admission_lists_add_points(data: dict, log_mode: bool) -> None:
     pattern_fio: str = "фио"
     pattern_profile: str = "профиль"
     pattern_test_name: list = [
-        "избранный вид спорта",
-        "офп",
-    ]
+        'избранный вид спорта', 
+        'офп', 
+        'адаптивный спорт', 
+        'лечебная физическая культура', 
+        'увфсикс', 
+        'уавфкис', 
+        'фквоу', 
+        'физическая культура для лиц различных контингентов населения', 
+        'физическая реабилитация',
+        ]
 
     dynamics_headers = [None, None]
 
@@ -173,8 +185,7 @@ def admission_lists_add_points(data: dict, log_mode: bool) -> None:
                 row,
                 pattern_fio, 
                 pattern_profile,
-                pattern_test_name[0],
-                pattern_test_name[1]
+                *pattern_test_name,
                 )
 
             # получаем индексы нужных нам колонок
@@ -182,19 +193,15 @@ def admission_lists_add_points(data: dict, log_mode: bool) -> None:
             profile_id = uuid_dict[pattern_profile]
 
             # списком с id столбцов, первый id ИВС второй ОФП
-            dynamics_headers = [
-                uuid_dict.get(pattern_test_name[0]),
-                uuid_dict.get(pattern_test_name[1])
-                                ]
+            dynamics_headers = [uuid_dict.get(i) for i in pattern_test_name]
+                                
         
         # важная проверка, чтобы не выполнять код, если таблица закончилась
         if row[0].value and not str(row[0].value).isdigit():
             pass
 
         # если нашли хотя бы один нужный заголовок
-        elif dynamics_headers[0] or dynamics_headers[1]:
-
-            
+        elif one_of_list_true(dynamics_headers):
             
             # получаем необходимы ключи из таблицы
             cell_fio = row[fio_id].value

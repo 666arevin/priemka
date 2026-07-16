@@ -56,10 +56,8 @@ def gosuslugi_splitter(no_editing: bool, log_mode: bool):
     data: dict = {} # словарик для кеша данных из excel gosuslugi
     current_row: int = 1
 
-    if no_editing:
-        # получаем словарь уже записанных студентов
-        with open(BASE_DIR / "json.json", mode="r", encoding="utf-8") as f:
-            data = json.load(f)
+    # открываем словарик
+    data = smart_file_open(BASE_DIR / "json.json")
 
 
     # проходимся по всем строкам таблицы

@@ -2,6 +2,10 @@ import openpyxl
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.cell.cell import Cell, MergedCell
 from openpyxl.utils import get_column_letter
+import os
+from pathlib import Path
+import json
+
 
 # Настройка стилей
 thin_side = openpyxl.styles.Side(border_style="thin", color="000000")
@@ -187,4 +191,23 @@ def read_headers(row: tuple[Cell, ...], *args) -> tuple[dict, list]:
     
 
     return (columns_id, merged_sells)
-            
+
+def smart_file_open(path: Path) -> dict:
+    """Открывает файл и возвращает данные из него.
+    Если файла не существует, создаст его.
+
+    Returns:
+        dict: Данные из словарик.
+    """
+    # проверяем, если файла не существует
+    if not os.path.exists(path):
+        
+        # создаем файл
+        with open(path, mode="w", encoding="utf-8") as f:
+            json.dump({}, f)
+
+    # открываем файл и читаем значения из него
+    with open(path, mode="r", encoding="utf-8") as f:
+        data = json.load(f)
+    
+    return data

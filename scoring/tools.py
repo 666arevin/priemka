@@ -9,26 +9,6 @@ BASE_DIR = Path(__file__).resolve().parent
 JSON_PATH = BASE_DIR / "cache" / "json.json"
 
 
-def smart_file_open() -> dict:
-    """Открывает файл и возвращает данные из него.
-    Если файла не существует, создаст его.
-
-    Returns:
-        dict: Данные из словарик.
-    """
-    # проверяем, если файла не существует
-    if not os.path.exists(JSON_PATH):
-        
-        # создаем файл
-        with open(JSON_PATH, mode="w", encoding="utf-8") as f:
-            json.dump({}, f)
-
-    # открываем файл и читаем значения из него
-    with open(JSON_PATH, mode="r", encoding="utf-8") as f:
-        data = json.load(f)
-    
-    return data
-
 
 def render_student_major(sport: str, student_major: str) -> str:
     """Обрабатывает строку с направлением подготовки,
@@ -133,11 +113,18 @@ def read_headers(row: tuple[Cell, ...], *args) ->  dict:
 
     return columns_id
 
-def if_int(data: str) -> bool:
-    for i in data:
-        if "0" <= i <= "9":
-            pass
-        else:
-            return False
-    
-    return True
+def one_of_list_true(arr: list) -> bool:
+    """Если в списке хотябы один элемент True либо содержит значение
+    отличное от None или False, функцитя вернет True.
+
+    Args:
+        arr (list): Список который нужно проверить.
+
+    Returns:
+        bool: 
+    """
+    for i in arr:
+        if i:
+            return True
+        
+    return False
